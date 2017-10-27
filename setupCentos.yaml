@@ -1,0 +1,159 @@
+---
+
+# This playbook stage a Production instance of the Network Configuration Generator on the local system
+- hosts: localhost
+  gather_facts: False
+  sudo: yes
+
+  # local services are only configured, if a variable "configure_local_services" is defined
+  # by default setup.centos7 scripts are set to use systemd with the defined variable "use_systemd"
+
+  tasks:
+  # install package dependencies
+  - name: install packages
+    yum: pkg={{ item }} state=installed
+    with_items:
+    - python34
+    - python34-pip.noarch
+    - python-devel.x86_64
+    - python34-devel.x86_64
+    - python-virtualenv
+    - nginx.x86_64
+    - redis.x86_64
+    - shellinabox
+
+  # setup python environment for site
+  - name: create virtualenv
+    command: virtualenv /var/www/network_config_generator/venv -p python3
+    sudo_user: ncg
+    args:
+      creates: /var/www/network_config_generator/venv/bin/python3
+  - name: install python3 dependencies
+    pip:
+      requirements=/var/www/network_config_generator/requirements.txt
+      executable=/var/www/network_config_generator/venv/bin/pip-3.4
+
+  # create key file if not exists
+  - name: generate key file for CSRF protection
+    shell: venv/bin/python3 deploy_centos/scripts/create_key_file.py
+    sudo_user: ncg
+    args:
+      creates: network_config_generator.key
+      chdir: /var/www/network_config_generator/
+  # Create /var/sockets so that application socket is accessable
+  - name: Create globaly accessable folder since /tmp is now special.
+    file:
+      path: /var/sockets/
+      state: directory
+      mode: 0777
+      force: yes
+
+  # configure gunicorn
+
+  - name: create gunicorn service (systemd)
+    copy:
+      src: templates_centos/gunicorn.template.service
+      dest: /etc/systemd/system/gunicorn-network_config_generator.service
+    when: use_systemd is defined
+
+  - name: set secret key on gunicorn configuration (systemd)
+    replace:
+      path: /etc/systemd/system/gunicorn-network_config_generator.service
+      regexp: 'SECRET_KEY_CONTENT'
+      replace: "{{ lookup ('file', '/var/www/network_config_generator/network_config_generator.key') }}"
+    when: use_systemd is defined
+
+  # configure celery worker
+  - name: create celery_worker service (systemd)
+    copy:
+      src=templates_centos/celery_worker.template.service
+      dest=/etc/systemd/system/worker-network_config_generator.service
+    when: use_systemd is defined
+
+  - name: set secret key on celery_worker configuration
+    replace:
+      dest: /etc/systemd/system/worker-network_config_generator.service
+      regexp: 'SECRET_KEY_CONTENT'
+      replace: "{{ lookup('file', '/var/www/network_config_generator/network_config_generator.key') }}"
+    when: use_systemd is defined
+
+  # configure nginx site
+  - name: Makin Sites-enabled cause centos...
+    file:
+      path: /etc/nginx/sites-enabled/
+      state: directory
+      force: yes
+  - name: Makin Sites-enabled cause centos...
+    file:
+      path: /etc/nginx/sites-available/
+      state: directory
+      force: yes
+  - name: copy nginx configuration
+    copy:
+      src: templates_centos/nginx.template.conf
+      dest: /etc/nginx/sites-available/network_config_generator
+  - name: enable site in nginx
+    file:
+      src: /etc/nginx/sites-available/network_config_generator
+      dest: /etc/nginx/sites-enabled/network_config_generator
+      state: link
+      force: yes
+  # configure shellinabox
+  - name: copy shellinabox service
+    copy:
+      src: templates_centos/shellinabox.template.service
+      dest: /etc/systemd/system/shellinabox.service
+      force: yes
+  - name: copy shellinabox configuration
+    copy:
+      src: templates_centos/shellinabox.conf
+      dest: /etc/sysconfig/shellinaboxd
+      force: yes
+  # Update permisions to  database script...cause i'm a dummy and cant figure out how to push it to git with 0755...sad face
+  - name: change perms on update_db to 755
+    file:
+      path: /var/www/network_config_generator/deploy_centos/scripts/update_database.sh
+      state: touch
+      mode: 0755
+      owner: ncg
+      group: ncg
+  # update database
+  - name: create srv root directory
+    sudo: true
+    file:
+      path=/srv
+      state=directory
+      mode=0777
+      owner=ncg
+      group=ncg
+  - name: update database schema
+    shell: deploy_centos/scripts/update_database.sh
+    args:
+      chdir: /var/www/network_config_generator/
+
+  # restart services
+  - name: execute systemctl daemon-reload
+    shell: systemctl daemon-reload
+    when: use_systemd is defined
+  - name: restart nginx service
+    service: name=nginx state=restarted enabled=yes
+    sudo: true
+  - name: restart gunicorn service
+    service: name=gunicorn-network_config_generator state=restarted enabled=yes
+    sudo: true
+  - name: restart celery worker service
+    service: name=worker-network_config_generator state=restarted enabled=yes
+    sudo: true
+  - name: restart shellinabox service
+    service: name=shellinabox state=restarted enabled=yes
+    sudo: true
+  # Create sym link to "netstat" to ss. This is done as to avoid edditing the python code witch useses netstat to check the satus of the appliences in the webapp
+  - name: enable site in nginx
+    file:
+      src: /usr/sbin/netstat
+      dest: /usr/sbin/ss
+      state: link
+      force: yes
+  # configure local services like FTP and TFTP
+  - include: setup_local_centos_services.yaml
+    when: configure_local_services is defined
