@@ -1,0 +1,54 @@
+#  Changes need to be made to the shellinaboxd config file as the OPTS that are set by default
+#  need to be changed to what they are set for below  //possibly this can be changed using sed//
+
+[root@na1 network_config_generator]# vim /etc/sysconfig/shellinaboxd
+# Shell in a box daemon configuration
+# For details see shellinaboxd man page
+
+# Basic options
+USER=shellinabox
+GROUP=shellinabox
+CERTDIR=/var/lib/shellinabox
+PORT=4200
+OPTS="--disable-ssl --no-beep --localhost-only"
+
+
+# Additional examples with custom options:
+
+# Fancy configuration with right-click menu choice for black-on-white:
+# OPTS="--user-css Normal:+black-on-white.css,Reverse:-white-on-black.css --disable-ssl-menu -s /:LOGIN"
+
+# Simple configuration for running it as an SSH console with SSL disabled:
+# OPTS="-t -s /:SSH:host.example.com"
+~
+
+#  THe issue with the testing is located in appliance.py . The methodology for testing tftp and ftp was using netstat. for futur installs
+ # We would either need to use ss wich comes with redhat, or install net-tools.x86_64. cmd ss -l would get the nessisary info  as well, and ERIC pointed out
+ # we could symLink netstat to ss
+#  https://github.com/hoelsner/network-config-generator/blob/afad79b3504b8e6ec86a5ad7bdd6064a12042580/app/utils/appliance.py
+
+
+
+In order to get ftp to work the curent vsftp.template.conf file is not being placed in the right area. it needs to be placed in
+
+      /etc/vsftpd/vsftpd.conf
+
+as the default file in this location is read and has ipv6 enabled as the primary sockt on witch to listen for ftp.    -before pull verify
+~
+
+
+=============NOW DONE========================
+shellinabox SHOULD WORK FROM INITIAL INSTALL AS THE MISSING SYSCONFIG/FILE HAS BEEN CREATED PLACED BY THE CENTOS_SETUP.YAML
+SYM LINK HAS BEEN PUT IN PLACE FOR NETSTAT
+To seperate TS from NETWORKING named based hosting will need to be used                                          
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
