@@ -55,6 +55,7 @@ do
 	    sudo yum install epel-release -y
 	    sudo yum update -y
  	    sudo yum install ansible -y
+	    sudo yum install xinetd -y
  	    yum groupinstall Development\ Tools -y
 
 	    echo "---------------------------------"
