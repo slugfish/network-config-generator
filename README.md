@@ -1,4 +1,4 @@
-Network Configuration Generator
+Network Configuration Generator----NOTE THE CENTOS VERSION HAS BUGS STILL TRYING TO FIX. NOTES MADE IN PROJECTS TAB.
 ===============================
 
 This Web application is a simple configuration generator for network equipment like Routers and Switches.
